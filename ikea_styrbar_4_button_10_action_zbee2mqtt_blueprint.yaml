@@ -1,76 +1,21 @@
 blueprint:
-  name: IKEA STYRBAR – 10 Azioni (Zigbee2MQTT)
+  name: IKEA STYRBAR RGB – All in One (Z2M)
   description: >
-    Versione Zigbee2MQTT del blueprint STYRBAR 10-action.
-    Supporta click, hold, release, double.
+    Palette IKEA, pressione lunga = scena,
+    doppio click = luce notte,
+    temperatura colore graduale.
   domain: automation
 
   input:
     mqtt_topic:
-      name: Topic MQTT del telecomando
-      description: es. zigbee2mqtt/styrbar_sala/action
+      name: Topic MQTT telecomando
+      selector: { text: }
+    light:
+      name: Lampada RGB
       selector:
-        text:
-
-    on_press:
-      name: ON – click
-      default: []
-      selector:
-        action: {}
-
-    off_press:
-      name: OFF – click
-      default: []
-      selector:
-        action: {}
-
-    up_hold:
-      name: Su – tenuto
-      default: []
-      selector:
-        action: {}
-
-    up_release:
-      name: Su – rilascio
-      default: []
-      selector:
-        action: {}
-
-    down_hold:
-      name: Giù – tenuto
-      default: []
-      selector:
-        action: {}
-
-    down_release:
-      name: Giù – rilascio
-      default: []
-      selector:
-        action: {}
-
-    left_click:
-      name: Sinistra – click
-      default: []
-      selector:
-        action: {}
-
-    left_hold:
-      name: Sinistra – tenuto
-      default: []
-      selector:
-        action: {}
-
-    right_click:
-      name: Destra – click
-      default: []
-      selector:
-        action: {}
-
-    right_double:
-      name: Destra – doppio click
-      default: []
-      selector:
-        action: {}
+        target:
+          entity:
+            domain: light
 
 mode: restart
 
@@ -78,32 +23,94 @@ trigger:
   - platform: mqtt
     topic: !input mqtt_topic
 
+variables:
+  palette:
+    - [0, 100]     # Rosso
+    - [30, 100]    # Arancio
+    - [55, 100]    # Giallo IKEA
+    - [120, 100]   # Verde
+    - [200, 100]   # Azzurro
+    - [240, 100]   # Blu
+  warm_white: 370
+  night:
+    brightness: 10
+    color_temp: 454
+
 action:
+  - variables:
+      entity: "{{ expand(light.entity_id)[0].entity_id }}"
+      current_hue: "{{ state_attr(entity,'hs_color')[0] | default(-1) }}"
+      index: >
+        {% set hues = palette | map('first') | list %}
+        {% set i = hues.index(current_hue) if current_hue in hues else -1 %}
+        {{ i }}
+
   - choose:
 
+      # ON / OFF
       - conditions: "{{ trigger.payload == 'on' }}"
-        sequence: !input on_press
+        sequence:
+          - service: light.turn_on
+            target: !input light
 
       - conditions: "{{ trigger.payload == 'off' }}"
-        sequence: !input off_press
+        sequence:
+          - service: light.turn_off
+            target: !input light
 
+      # DIMMER
       - conditions: "{{ trigger.payload == 'brightness_move_up' }}"
-        sequence: !input up_hold
-
-      - conditions: "{{ trigger.payload == 'brightness_stop' }}"
-        sequence: !input up_release
+        sequence:
+          - service: light.turn_on
+            target: !input light
+            data: { brightness_step: 25 }
 
       - conditions: "{{ trigger.payload == 'brightness_move_down' }}"
-        sequence: !input down_hold
+        sequence:
+          - service: light.turn_on
+            target: !input light
+            data: { brightness_step: -25 }
 
-      - conditions: "{{ trigger.payload == 'arrow_left_click' }}"
-        sequence: !input left_click
+      # TEMPERATURA COLORE GRADUALE
+      - conditions: "{{ trigger.payload in ['arrow_up_click','arrow_down_click'] }}"
+        sequence:
+          - service: light.turn_on
+            target: !input light
+            data:
+              color_temp: >
+                {% set ct = state_attr(entity,'color_temp') | default(warm_white) %}
+                {{ ct - 30 if trigger.payload == 'arrow_up_click' else ct + 30 }}
 
-      - conditions: "{{ trigger.payload == 'arrow_left_hold' }}"
-        sequence: !input left_hold
-
+      # PALETTE CICLICA
       - conditions: "{{ trigger.payload == 'arrow_right_click' }}"
-        sequence: !input right_click
+        sequence:
+          - service: light.turn_on
+            target: !input light
+            data:
+              hs_color: >
+                {% set next = (index + 1) % (palette | length) %}
+                {{ palette[next] }}
 
+      # RITORNO A BIANCO CALDO
+      - conditions: "{{ trigger.payload == 'arrow_left_click' }}"
+        sequence:
+          - service: light.turn_on
+            target: !input light
+            data:
+              color_temp: "{{ warm_white }}"
+
+      # SCENA (PRESSIONE LUNGA)
+      - conditions: "{{ trigger.payload == 'arrow_right_hold' }}"
+        sequence:
+          - service: light.turn_on
+            target: !input light
+            data:
+              brightness: 200
+              color_temp: 300
+
+      # LUCE NOTTE (DOPPIO CLICK)
       - conditions: "{{ trigger.payload == 'arrow_right_double' }}"
-        sequence: !input right_double
+        sequence:
+          - service: light.turn_on
+            target: !input light
+            data: "{{ night }}"
