@@ -1,15 +1,17 @@
 blueprint:
-  name: IKEA STYRBAR RGB – All in One (Z2M)
+  name: IKEA STYRBAR RGB – All-in-One (Z2M – FIX)
   description: >
-    Palette IKEA, pressione lunga = scena,
-    doppio click = luce notte,
-    temperatura colore graduale.
+    Versione stabile senza helper esterni.
+    Palette IKEA, bianco caldo, luce notte,
+    scena su pressione lunga, temperatura colore graduale.
   domain: automation
 
   input:
     mqtt_topic:
       name: Topic MQTT telecomando
-      selector: { text: }
+      description: es. zigbee2mqtt/styrbar_sala/action
+      selector:
+        text:
     light:
       name: Lampada RGB
       selector:
@@ -22,6 +24,34 @@ mode: restart
 trigger:
   - platform: mqtt
     topic: !input mqtt_topic
+    payload: on
+  - platform: mqtt
+    topic: !input mqtt_topic
+    payload: off
+  - platform: mqtt
+    topic: !input mqtt_topic
+    payload: brightness_move_up
+  - platform: mqtt
+    topic: !input mqtt_topic
+    payload: brightness_move_down
+  - platform: mqtt
+    topic: !input mqtt_topic
+    payload: arrow_right_click
+  - platform: mqtt
+    topic: !input mqtt_topic
+    payload: arrow_left_click
+  - platform: mqtt
+    topic: !input mqtt_topic
+    payload: arrow_right_hold
+  - platform: mqtt
+    topic: !input mqtt_topic
+    payload: arrow_right_double
+  - platform: mqtt
+    topic: !input mqtt_topic
+    payload: arrow_up_click
+  - platform: mqtt
+    topic: !input mqtt_topic
+    payload: arrow_down_click
 
 variables:
   palette:
@@ -39,20 +69,19 @@ variables:
 action:
   - variables:
       entity: "{{ expand(light.entity_id)[0].entity_id }}"
-      current_hue: "{{ state_attr(entity,'hs_color')[0] | default(-1) }}"
-      index: >
-        {% set hues = palette | map('first') | list %}
-        {% set i = hues.index(current_hue) if current_hue in hues else -1 %}
-        {{ i }}
+      hue: "{{ state_attr(entity,'hs_color')[0] | default(-1) }}"
+      hues: "{{ palette | map('first') | list }}"
+      idx: "{{ hues.index(hue) if hue in hues else -1 }}"
 
   - choose:
 
-      # ON / OFF
+      # ON
       - conditions: "{{ trigger.payload == 'on' }}"
         sequence:
           - service: light.turn_on
             target: !input light
 
+      # OFF
       - conditions: "{{ trigger.payload == 'off' }}"
         sequence:
           - service: light.turn_off
@@ -63,13 +92,15 @@ action:
         sequence:
           - service: light.turn_on
             target: !input light
-            data: { brightness_step: 25 }
+            data:
+              brightness_step: 25
 
       - conditions: "{{ trigger.payload == 'brightness_move_down' }}"
         sequence:
           - service: light.turn_on
             target: !input light
-            data: { brightness_step: -25 }
+            data:
+              brightness_step: -25
 
       # TEMPERATURA COLORE GRADUALE
       - conditions: "{{ trigger.payload in ['arrow_up_click','arrow_down_click'] }}"
@@ -87,11 +118,9 @@ action:
           - service: light.turn_on
             target: !input light
             data:
-              hs_color: >
-                {% set next = (index + 1) % (palette | length) %}
-                {{ palette[next] }}
+              hs_color: "{{ palette[(idx + 1) % (palette | length)] }}"
 
-      # RITORNO A BIANCO CALDO
+      # RITORNO BIANCO CALDO
       - conditions: "{{ trigger.payload == 'arrow_left_click' }}"
         sequence:
           - service: light.turn_on
@@ -99,7 +128,7 @@ action:
             data:
               color_temp: "{{ warm_white }}"
 
-      # SCENA (PRESSIONE LUNGA)
+      # SCENA (HOLD)
       - conditions: "{{ trigger.payload == 'arrow_right_hold' }}"
         sequence:
           - service: light.turn_on
@@ -108,7 +137,7 @@ action:
               brightness: 200
               color_temp: 300
 
-      # LUCE NOTTE (DOPPIO CLICK)
+      # LUCE NOTTE (DOUBLE)
       - conditions: "{{ trigger.payload == 'arrow_right_double' }}"
         sequence:
           - service: light.turn_on
