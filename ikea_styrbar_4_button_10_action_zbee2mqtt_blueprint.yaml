@@ -1,0 +1,109 @@
+blueprint:
+  name: IKEA STYRBAR – 10 Azioni (Zigbee2MQTT)
+  description: >
+    Versione Zigbee2MQTT del blueprint STYRBAR 10-action.
+    Supporta click, hold, release, double.
+  domain: automation
+
+  input:
+    mqtt_topic:
+      name: Topic MQTT del telecomando
+      description: es. zigbee2mqtt/styrbar_sala/action
+      selector:
+        text:
+
+    on_press:
+      name: ON – click
+      default: []
+      selector:
+        action: {}
+
+    off_press:
+      name: OFF – click
+      default: []
+      selector:
+        action: {}
+
+    up_hold:
+      name: Su – tenuto
+      default: []
+      selector:
+        action: {}
+
+    up_release:
+      name: Su – rilascio
+      default: []
+      selector:
+        action: {}
+
+    down_hold:
+      name: Giù – tenuto
+      default: []
+      selector:
+        action: {}
+
+    down_release:
+      name: Giù – rilascio
+      default: []
+      selector:
+        action: {}
+
+    left_click:
+      name: Sinistra – click
+      default: []
+      selector:
+        action: {}
+
+    left_hold:
+      name: Sinistra – tenuto
+      default: []
+      selector:
+        action: {}
+
+    right_click:
+      name: Destra – click
+      default: []
+      selector:
+        action: {}
+
+    right_double:
+      name: Destra – doppio click
+      default: []
+      selector:
+        action: {}
+
+mode: restart
+
+trigger:
+  - platform: mqtt
+    topic: !input mqtt_topic
+
+action:
+  - choose:
+
+      - conditions: "{{ trigger.payload == 'on' }}"
+        sequence: !input on_press
+
+      - conditions: "{{ trigger.payload == 'off' }}"
+        sequence: !input off_press
+
+      - conditions: "{{ trigger.payload == 'brightness_move_up' }}"
+        sequence: !input up_hold
+
+      - conditions: "{{ trigger.payload == 'brightness_stop' }}"
+        sequence: !input up_release
+
+      - conditions: "{{ trigger.payload == 'brightness_move_down' }}"
+        sequence: !input down_hold
+
+      - conditions: "{{ trigger.payload == 'arrow_left_click' }}"
+        sequence: !input left_click
+
+      - conditions: "{{ trigger.payload == 'arrow_left_hold' }}"
+        sequence: !input left_hold
+
+      - conditions: "{{ trigger.payload == 'arrow_right_click' }}"
+        sequence: !input right_click
+
+      - conditions: "{{ trigger.payload == 'arrow_right_double' }}"
+        sequence: !input right_double
